@@ -1,17 +1,15 @@
 from argparse import Namespace
 from collections import namedtuple
-import os 
 import json
-from pathlib import Path
+import os
 from typing import Any, Dict, Iterable, Tuple  # noqa: F401
 from urllib import parse
 
-from eth_utils import to_dict, to_text, to_hex
-import requests
+from eth_typing import URI, Address, Manifest  # noqa: F401
+from eth_utils import to_dict, to_hex, to_text
 from ethpm.backends.http import GithubOverHTTPSBackend
 from ethpm.backends.ipfs import BaseIPFSBackend
 from ethpm.backends.registry import RegistryURIBackend
-from ethpm.typing import URI, Address, Manifest  # noqa: F401
 from ethpm.tools import builder
 from ethpm.utils.chains import create_latest_block_uri
 from ethpm.utils.ipfs import extract_ipfs_path_from_uri, generate_file_hash, is_ipfs_uri
@@ -26,17 +24,18 @@ from ethpm.utils.uri import (
     validate_blob_uri_contents,
 )
 from ethpm.validation import is_valid_registry_uri
+import requests
 from web3.auto.infura import w3
 
-from ethpm_cli.constants import ETHERSCAN_KEY_ENV_VAR
-from ethpm_cli.config import Config
-from ethpm_cli.exceptions import (
-    UriNotSupportedError,
-    EtherscanKeyNotFound,
-    ContractNotVerified,
-)
-from ethpm_cli._utils.logger import cli_logger
 from ethpm_cli._utils.ipfs import get_ipfs_backend
+from ethpm_cli.config import Config
+from ethpm_cli.constants import ETHERSCAN_KEY_ENV_VAR
+from ethpm_cli.exceptions import (
+    ContractNotVerified,
+    EtherscanKeyNotFound,
+    UriNotSupportedError,
+)
+from ethpm_cli.validation import validate_etherscan_key_available
 
 
 class Package:
@@ -59,7 +58,7 @@ class Package:
         self.target_uri = target_uri
 
     @to_dict
-    def generate_ethpm_lock(self) -> Iterable[Tuple[str, str]]:
+    def generate_ethpm_lock(self) -> Iterable[Tuple[str, Any]]:
         yield "resolved_uri", self.manifest_uri
         yield "resolved_content_hash", self.resolved_content_hash
         yield "target_uri", self.target_uri
@@ -122,7 +121,6 @@ def package_from_etherscan(args: Namespace, config: Config) -> Package:
     contract_addr = args.etherscan
     body = make_etherscan_request(contract_addr)
 
-    # how useful is this, if we're always verifying against the same value - (at least for pkgs generated this way
     contract_type = body["ContractName"]
     block_uri = create_latest_block_uri(w3)
     runtime_bytecode = to_hex(w3.eth.getCode(contract_addr))
@@ -140,7 +138,6 @@ def package_from_etherscan(args: Namespace, config: Config) -> Package:
         },
         "deployments": {
             block_uri: {
-                # support aliasing?
                 contract_type: {
                     "contract_type": contract_type,
                     "address": contract_addr,
@@ -153,14 +150,15 @@ def package_from_etherscan(args: Namespace, config: Config) -> Package:
     ipfs_data = builder.build(
         manifest, builder.validate(), builder.pin_to_ipfs(backend=ipfs_backend)
     )
-    ipfs_uri = f"ipfs://{ipfs_data[0]['Hash']}"
+    ipfs_uri = URI(f"ipfs://{ipfs_data[0]['Hash']}")
 
     return Package(ipfs_uri, args.alias, ipfs_backend)
 
 
-def make_etherscan_request(contract_addr) -> Dict[str, str]:
-    etherscan_api_key = get_etherscan_key()
-    response = requests.get(
+def make_etherscan_request(contract_addr: Address) -> Dict[str, str]:
+    validate_etherscan_key_available()
+    etherscan_api_key = os.getenv(ETHERSCAN_KEY_ENV_VAR)
+    response = requests.get(  # type: ignore
         "https://api.etherscan.io/api",
         params=[
             ("module", "contract"),
@@ -170,23 +168,15 @@ def make_etherscan_request(contract_addr) -> Dict[str, str]:
         ],
     ).json()
 
-    if response['message'] == "NOTOK":
+    if response["message"] == "NOTOK":
         raise ContractNotVerified(
             f"Contract at {contract_addr} has not been verified on Etherscan."
         )
-    return response['result'][0]
-
-
-def get_etherscan_key() -> str:
-    if ETHERSCAN_KEY_ENV_VAR not in os.environ:
-        raise EtherscanKeyNotFound(
-            f"No Etherscan API key found. Please ensure that the {ETHERSCAN_KEY_ENV_VAR} environment variable is set."
-        )
-    return os.getenv(ETHERSCAN_KEY_ENV_VAR)
+    return response["result"][0]
 
 
 @to_dict
-def generate_compiler_info(body: Dict[str, Any]) -> Iterable[str]:
+def generate_compiler_info(body: Dict[str, Any]) -> Iterable[Tuple[str, Any]]:
     if "vyper" in body["CompilerVersion"]:
         name, version = body["CompilerVersion"].split(":")
     else:

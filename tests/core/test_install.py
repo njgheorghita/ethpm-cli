@@ -24,6 +24,7 @@ def config(tmpdir):
     namespace.local_ipfs = False
     namespace.target_uri = None
     namespace.alias = None
+    namespace.etherscan = None
     namespace.ethpm_dir = ethpm_dir
     return Config(namespace)
 
