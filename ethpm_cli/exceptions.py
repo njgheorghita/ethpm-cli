@@ -44,3 +44,19 @@ class AmbigiousFileSystem(BaseEthpmCliError):
     """
 
     pass
+
+
+class EtherscanKeyNotFound(BaseEthpmCliError):
+    """
+    Raised when no Etherscan API key is set as environment variable.
+    """
+
+    pass
+
+
+class ContractNotVerified(BaseEthpmCliError):
+    """
+    Raised when a request to Etherscan is for an unverified contract.
+    """
+
+    pass

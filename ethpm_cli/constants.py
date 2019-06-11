@@ -14,3 +14,4 @@ VERSION_RELEASE_ABI = json.loads((CLI_ASSETS_DIR / "1.0.1.json").read_text())[
     "contract_types"
 ]["Log"]["abi"]
 INFURA_HTTP_URI = f"https://mainnet.infura.io/v3/{INFURA_API_KEY}"
+ETHERSCAN_KEY_ENV_VAR = "ETHPM_CLI_ETHERSCAN_API_KEY"

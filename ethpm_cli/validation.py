@@ -1,7 +1,9 @@
 from argparse import Namespace
 import json
 from pathlib import Path
+import os
 
+from eth_utils import is_hex_address
 from ethpm.exceptions import ValidationError as EthPMValidationError
 from ethpm.typing import URI
 from ethpm.utils.ipfs import is_ipfs_uri
@@ -18,18 +20,49 @@ def validate_parent_directory(parent_dir: Path, child_dir: Path) -> None:
 
 
 def validate_install_cli_args(args: Namespace) -> None:
-    validate_target_uri(args.uri)
+    if args.uri:
+        validate_target_uri(args.uri)
+
     if args.alias:
         validate_alias(args.alias)
 
     if args.ethpm_dir:
         validate_ethpm_dir(args.ethpm_dir)
 
+    # test
+    if args.etherscan:
+        validate_address(args.etherscan)
+
+        if "package_name" not in args:
+            raise InstallError
+
+        if "version" not in args:
+            raise InstallError
+
 
 def validate_uninstall_cli_args(args: Namespace) -> None:
     validate_package_name(args.package)
     if args.ethpm_dir:
         validate_ethpm_dir(args.ethpm_dir)
+
+
+def validate_verify_cli_args(args: Namespace, config) -> None:
+    validate_address(args.address)
+    # contract type name / id needs cleaning up
+    validate_package_is_installed(args.contract_type, config)
+
+
+def validate_package_is_installed(contract_type_id, config):
+    package, contract_type = contract_type_id.split(":")
+    validate_package_name(package)
+    # dupe code from ethpm_cli.install
+    if not os.path.exists(config.ethpm_dir / package):
+        raise InstallError(f"{package} is not installed.")
+
+
+def validate_address(address):
+    if not is_hex_address(address):
+        raise ValidationError(f"{address} is not a valid hex address.")
 
 
 def validate_target_uri(uri: URI) -> None:
