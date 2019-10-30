@@ -237,7 +237,7 @@ def gen_contract_types_and_sources(
 ) -> Tuple[Callable[..., Manifest], ...]:
     # todo: option to include additional sources not associated with included contract types
     ctypes_and_sources = get_contract_types_and_sources(solc_output)
-    all_contract_types = [ctype for ctype, _ in ctypes_and_sources]
+    all_contract_types = list(ctypes_and_sources.keys())
     pretty = "".join(format_contract_types_and_sources_for_display(ctypes_and_sources))
     flag = parse_bool_flag(
         "\n"
@@ -272,12 +272,20 @@ def gen_contract_types_and_sources(
         "Would you like to inline source files? If not, sources will "
         "be automatically pinned to IPFS."
     )
+    
+    from ethpm_cli._utils.various import flatten
+
+
+    target_sources = flatten([ctypes_and_sources[ctype] for ctype in target_contract_types])
+    target_source_names = [source.stem for source in target_sources]
 
     # generate contract types and sources builder fns for manifest builder
+    cts_and_all_sources = set(target_contract_types + target_source_names)
     generated_contract_types = build_contract_types(target_contract_types, solc_output)
+
     if inline_source_flag:
         generated_sources = build_inline_sources(
-            target_contract_types, solc_output, contracts_dir
+            cts_and_all_sources, solc_output, contracts_dir
         )
     else:
         generated_sources = build_pinned_sources(
@@ -288,11 +296,11 @@ def gen_contract_types_and_sources(
 
 @to_list
 def format_contract_types_and_sources_for_display(
-    ctypes_and_sources: Tuple[str]
+    ctypes_and_sources
 ) -> Iterable[str]:
-    for ctype in sorted(ctypes_and_sources):
-        yield f"{ctype[0]}\n"
-        for src in sorted(ctype[1]):
+    for ctype in sorted(ctypes_and_sources.keys()):
+        yield f"{ctype}\n"
+        for src in sorted(ctypes_and_sources[ctype]):
             yield f"  - {src}\n"
 
 

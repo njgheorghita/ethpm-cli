@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Tuple
 
 from eth_typing import Manifest
-from eth_utils import to_tuple
+from eth_utils import to_tuple, to_dict
 from eth_utils.toolz import assoc
 from ethpm.tools import builder as b
 
@@ -102,7 +102,7 @@ def get_contract_types(solc_output: Dict[str, Any]) -> Iterable[str]:
             yield ctype
 
 
-@to_tuple
+@to_dict
 def get_contract_types_and_sources(
     solc_output: Dict[str, Any]
 ) -> Iterable[Tuple[str, Iterable[Path]]]:
